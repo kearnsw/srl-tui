@@ -1118,7 +1118,7 @@ impl App {
         .split(area);
 
         // Title
-        let title = Paragraph::new("Statistics")
+        let title = Paragraph::new("Stats")
             .alignment(Alignment::Center)
             .style(self.theme.title());
         frame.render_widget(title, chunks[0]);
