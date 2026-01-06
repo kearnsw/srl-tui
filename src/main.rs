@@ -54,6 +54,18 @@ struct Args {
     /// Import decks from a backup file
     #[arg(short = 'b', long)]
     import_backup: Option<PathBuf>,
+
+    /// Import from Anki export (.apkg or tab-separated .txt)
+    #[arg(short = 'a', long)]
+    import_anki: Option<PathBuf>,
+
+    /// Name for Anki text import (ignored for .apkg files)
+    #[arg(long)]
+    import_anki_name: Option<String>,
+
+    /// Export all decks to Anki .apkg format (preserves scheduling)
+    #[arg(short = 'A', long)]
+    export_anki: Option<PathBuf>,
 }
 
 // ══════════════════════════════════════════════════════════════════════════
@@ -115,6 +127,17 @@ fn main() -> Result<()> {
         return Ok(());
     }
 
+    // Handle Anki export
+    if let Some(anki_path) = args.export_anki {
+        let card_count = storage.export_apkg(&anki_path, None)?;
+        println!(
+            "Exported {} cards to {} (Anki format)",
+            card_count,
+            anki_path.display()
+        );
+        return Ok(());
+    }
+
     // Handle backup import
     if let Some(backup_path) = args.import_backup {
         let (imported, skipped) = storage.import_backup(&backup_path)?;
@@ -122,6 +145,36 @@ fn main() -> Result<()> {
             println!("Imported {} decks ({} skipped - already exist)", imported, skipped);
         } else {
             println!("Imported {} decks", imported);
+        }
+        return Ok(());
+    }
+
+    // Handle Anki import
+    if let Some(anki_path) = args.import_anki {
+        let decks = storage.import_anki(&anki_path, args.import_anki_name.as_deref())?;
+        let mut total_cards = 0;
+        let mut saved_count = 0;
+        let mut skipped_names = Vec::new();
+
+        for deck in decks {
+            if storage.deck_name_exists(&deck.name) {
+                skipped_names.push(deck.name);
+            } else {
+                total_cards += deck.cards.len();
+                storage.save_deck(&deck)?;
+                println!("  {} ({} cards)", deck.name, deck.cards.len());
+                saved_count += 1;
+            }
+        }
+
+        if saved_count > 0 {
+            println!("Imported {} deck(s) with {} total cards", saved_count, total_cards);
+        }
+        if !skipped_names.is_empty() {
+            println!("Skipped {} deck(s) (already exist):", skipped_names.len());
+            for name in skipped_names {
+                println!("  {}", name);
+            }
         }
         return Ok(());
     }
