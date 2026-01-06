@@ -1,1 +1,8 @@
 /target
+.claude/
+CLAUDE.md
+decks/
+flashcards/
+*.swp
+*.swo
+.DS_Store
