@@ -141,8 +141,18 @@ impl DeckStorage {
 
     /// Import all CSV files from a folder.
     /// Names decks based on filename, converting snake_case/kebab-case to Title Case.
-    pub fn import_folder(&self, folder_path: &Path) -> Result<Vec<(String, usize)>> {
-        let mut results = Vec::new();
+    /// Skips any deck whose name already exists.
+    /// Returns (imported, skipped) tuple.
+    pub fn import_folder(&self, folder_path: &Path) -> Result<(Vec<(String, usize)>, Vec<String>)> {
+        let mut imported = Vec::new();
+        let mut skipped = Vec::new();
+
+        // Get existing deck names for duplicate check
+        let existing_names: std::collections::HashSet<String> = self
+            .list_decks()?
+            .into_iter()
+            .map(|d| d.name.to_lowercase())
+            .collect();
 
         for entry in fs::read_dir(folder_path)? {
             let entry = entry?;
@@ -155,12 +165,18 @@ impl DeckStorage {
                     .map(filename_to_title_case)
                     .unwrap_or_else(|| "Imported Deck".to_string());
 
+                // Skip if deck with this name already exists
+                if existing_names.contains(&deck_name.to_lowercase()) {
+                    skipped.push(deck_name);
+                    continue;
+                }
+
                 match self.import_csv(&path, &deck_name) {
                     Ok(deck) => {
                         let card_count = deck.cards.len();
                         if card_count > 0 {
                             self.save_deck(&deck)?;
-                            results.push((deck_name, card_count));
+                            imported.push((deck_name, card_count));
                         }
                     }
                     Err(e) => {
@@ -170,7 +186,14 @@ impl DeckStorage {
             }
         }
 
-        Ok(results)
+        Ok((imported, skipped))
+    }
+
+    /// Check if a deck with the given name already exists.
+    pub fn deck_name_exists(&self, name: &str) -> bool {
+        self.list_decks()
+            .map(|decks| decks.iter().any(|d| d.name.to_lowercase() == name.to_lowercase()))
+            .unwrap_or(false)
     }
 }
 

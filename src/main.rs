@@ -71,6 +71,11 @@ fn main() -> Result<()> {
 
     // Handle single file import
     if let Some(csv_path) = args.import {
+        // Check if deck with this name already exists
+        if storage.deck_name_exists(&args.import_name) {
+            println!("Skipped: deck '{}' already exists", args.import_name);
+            return Ok(());
+        }
         let deck = storage.import_csv(&csv_path, &args.import_name)?;
         storage.save_deck(&deck)?;
         println!(
@@ -83,13 +88,21 @@ fn main() -> Result<()> {
 
     // Handle folder import
     if let Some(folder_path) = args.import_folder {
-        let results = storage.import_folder(&folder_path)?;
-        if results.is_empty() {
+        let (imported, skipped) = storage.import_folder(&folder_path)?;
+        if imported.is_empty() && skipped.is_empty() {
             println!("No CSV files found in {:?}", folder_path);
         } else {
-            println!("Imported {} decks:", results.len());
-            for (name, count) in results {
-                println!("  {} ({} cards)", name, count);
+            if !imported.is_empty() {
+                println!("Imported {} decks:", imported.len());
+                for (name, count) in &imported {
+                    println!("  {} ({} cards)", name, count);
+                }
+            }
+            if !skipped.is_empty() {
+                println!("Skipped {} decks (already exist):", skipped.len());
+                for name in &skipped {
+                    println!("  {}", name);
+                }
             }
         }
         return Ok(());
