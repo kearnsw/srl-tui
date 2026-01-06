@@ -1,7 +1,8 @@
 //! TUI module for the flashcard application.
 
 mod app;
-mod theme;
+pub mod theme;
 mod widgets;
 
 pub use app::App;
+pub use theme::Theme;

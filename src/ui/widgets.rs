@@ -15,9 +15,11 @@ use crate::models::DeckStats;
 // Logo Widget
 // ══════════════════════════════════════════════════════════════════════════
 
-pub struct Logo;
+pub struct Logo<'a> {
+    theme: &'a Theme,
+}
 
-impl Logo {
+impl<'a> Logo<'a> {
     const ART: &'static str = r#"
     ╭─────────────────────────────────────────╮
     │  _____ _           _                    │
@@ -32,13 +34,17 @@ impl Logo {
     │                     └───────────────┘   │
     ╰─────────────────────────────────────────╯"#;
 
-    pub fn render(area: Rect, buf: &mut Buffer) {
+    pub fn new(theme: &'a Theme) -> Self {
+        Self { theme }
+    }
+
+    pub fn render_to(theme: &Theme, area: Rect, buf: &mut Buffer) {
         let lines: Vec<Line> = Self::ART
             .lines()
             .skip(1)
             .map(|line| {
                 Line::from(vec![
-                    Span::styled(line, Style::default().fg(Theme::PRIMARY))
+                    Span::styled(line, Style::default().fg(theme.colors.primary))
                 ])
             })
             .collect();
@@ -50,21 +56,28 @@ impl Logo {
     }
 }
 
+impl Widget for Logo<'_> {
+    fn render(self, area: Rect, buf: &mut Buffer) {
+        Self::render_to(self.theme, area, buf);
+    }
+}
+
 // ══════════════════════════════════════════════════════════════════════════
 // Stats Bar Widget
 // ══════════════════════════════════════════════════════════════════════════
 
-pub struct StatsBar {
+pub struct StatsBar<'a> {
     stats: DeckStats,
+    theme: &'a Theme,
 }
 
-impl StatsBar {
-    pub fn new(stats: DeckStats) -> Self {
-        Self { stats }
+impl<'a> StatsBar<'a> {
+    pub fn new(stats: DeckStats, theme: &'a Theme) -> Self {
+        Self { stats, theme }
     }
 }
 
-impl Widget for StatsBar {
+impl Widget for StatsBar<'_> {
     fn render(self, area: Rect, buf: &mut Buffer) {
         let chunks = Layout::horizontal([
             Constraint::Percentage(25),
@@ -76,11 +89,11 @@ impl Widget for StatsBar {
 
         // New cards
         let new_text = Line::from(vec![
-            Span::styled("● ", Theme::stats_new()),
-            Span::styled("New: ", Style::default().fg(Theme::TEXT_MUTED)),
+            Span::styled("● ", self.theme.stats_new()),
+            Span::styled("New: ", Style::default().fg(self.theme.colors.text_muted)),
             Span::styled(
                 self.stats.new_cards.to_string(),
-                Theme::stats_new(),
+                self.theme.stats_new(),
             ),
         ]);
         Paragraph::new(new_text)
@@ -89,11 +102,11 @@ impl Widget for StatsBar {
 
         // Learning cards
         let learning_text = Line::from(vec![
-            Span::styled("● ", Theme::stats_learning()),
-            Span::styled("Learning: ", Style::default().fg(Theme::TEXT_MUTED)),
+            Span::styled("● ", self.theme.stats_learning()),
+            Span::styled("Learning: ", Style::default().fg(self.theme.colors.text_muted)),
             Span::styled(
                 self.stats.learning_cards.to_string(),
-                Theme::stats_learning(),
+                self.theme.stats_learning(),
             ),
         ]);
         Paragraph::new(learning_text)
@@ -102,11 +115,11 @@ impl Widget for StatsBar {
 
         // Due cards
         let due_text = Line::from(vec![
-            Span::styled("● ", Theme::stats_due()),
-            Span::styled("Due: ", Style::default().fg(Theme::TEXT_MUTED)),
+            Span::styled("● ", self.theme.stats_due()),
+            Span::styled("Due: ", Style::default().fg(self.theme.colors.text_muted)),
             Span::styled(
                 self.stats.due_cards.to_string(),
-                Theme::stats_due(),
+                self.theme.stats_due(),
             ),
         ]);
         Paragraph::new(due_text)
@@ -115,10 +128,10 @@ impl Widget for StatsBar {
 
         // Total
         let total_text = Line::from(vec![
-            Span::styled("Total: ", Style::default().fg(Theme::TEXT_MUTED)),
+            Span::styled("Total: ", Style::default().fg(self.theme.colors.text_muted)),
             Span::styled(
                 self.stats.total_cards.to_string(),
-                Style::default().fg(Theme::TEXT_DIM),
+                Style::default().fg(self.theme.colors.text_dim),
             ),
         ]);
         Paragraph::new(total_text)
@@ -134,20 +147,21 @@ impl Widget for StatsBar {
 pub struct FlashcardWidget<'a> {
     content: &'a str,
     is_front: bool,
+    theme: &'a Theme,
 }
 
 impl<'a> FlashcardWidget<'a> {
-    pub fn new(content: &'a str, is_front: bool) -> Self {
-        Self { content, is_front }
+    pub fn new(content: &'a str, is_front: bool, theme: &'a Theme) -> Self {
+        Self { content, is_front, theme }
     }
 }
 
 impl Widget for FlashcardWidget<'_> {
     fn render(self, area: Rect, buf: &mut Buffer) {
         let (label, label_style, border_style) = if self.is_front {
-            ("QUESTION", Theme::card_front(), Style::default().fg(Theme::ACCENT))
+            ("QUESTION", self.theme.card_front(), Style::default().fg(self.theme.colors.accent))
         } else {
-            ("ANSWER", Theme::card_back(), Style::default().fg(Theme::SUCCESS))
+            ("ANSWER", self.theme.card_back(), Style::default().fg(self.theme.colors.success))
         };
 
         // Outer block with pretty border
@@ -169,7 +183,7 @@ impl Widget for FlashcardWidget<'_> {
         let content_para = Paragraph::new(self.content)
             .alignment(Alignment::Center)
             .wrap(Wrap { trim: true })
-            .style(Style::default().fg(Theme::TEXT));
+            .style(Style::default().fg(self.theme.colors.text));
 
         // Center vertically
         let content_height = self.content.lines().count() as u16;
@@ -193,11 +207,12 @@ impl Widget for FlashcardWidget<'_> {
 pub struct RatingButtons<'a> {
     intervals: &'a [(crate::models::ReviewRating, String)],
     enabled: bool,
+    theme: &'a Theme,
 }
 
 impl<'a> RatingButtons<'a> {
-    pub fn new(intervals: &'a [(crate::models::ReviewRating, String)], enabled: bool) -> Self {
-        Self { intervals, enabled }
+    pub fn new(intervals: &'a [(crate::models::ReviewRating, String)], enabled: bool, theme: &'a Theme) -> Self {
+        Self { intervals, enabled, theme }
     }
 }
 
@@ -213,9 +228,9 @@ impl Widget for RatingButtons<'_> {
 
         for (i, (rating, interval)) in self.intervals.iter().enumerate() {
             let color = if self.enabled {
-                rating.color()
+                rating.color_for_theme(self.theme)
             } else {
-                Theme::TEXT_DIM
+                self.theme.colors.text_dim
             };
 
             let key = (i + 1).to_string();
@@ -260,7 +275,7 @@ impl Widget for RatingButtons<'_> {
             // Interval
             if self.enabled {
                 let interval_line = Line::from(vec![
-                    Span::styled(interval, Style::default().fg(Theme::TEXT_MUTED)),
+                    Span::styled(interval, Style::default().fg(self.theme.colors.text_muted)),
                 ]);
                 Paragraph::new(interval_line)
                     .alignment(Alignment::Center)
@@ -282,11 +297,12 @@ impl Widget for RatingButtons<'_> {
 
 pub struct KeyHints<'a> {
     hints: &'a [(&'a str, &'a str)],
+    theme: &'a Theme,
 }
 
 impl<'a> KeyHints<'a> {
-    pub fn new(hints: &'a [(&'a str, &'a str)]) -> Self {
-        Self { hints }
+    pub fn new(hints: &'a [(&'a str, &'a str)], theme: &'a Theme) -> Self {
+        Self { hints, theme }
     }
 }
 
@@ -297,9 +313,9 @@ impl Widget for KeyHints<'_> {
             .iter()
             .flat_map(|(key, desc)| {
                 vec![
-                    Span::styled(*key, Theme::key_highlight()),
-                    Span::styled(format!(" {} ", desc), Theme::key_hint()),
-                    Span::styled("│ ", Style::default().fg(Theme::TEXT_DIM)),
+                    Span::styled(*key, self.theme.key_highlight()),
+                    Span::styled(format!(" {} ", desc), self.theme.key_hint()),
+                    Span::styled("│ ", Style::default().fg(self.theme.colors.text_dim)),
                 ]
             })
             .collect();
@@ -315,29 +331,31 @@ impl Widget for KeyHints<'_> {
 // Completion Screen Widget
 // ══════════════════════════════════════════════════════════════════════════
 
-pub struct CompletionScreen {
+pub struct CompletionScreen<'a> {
     cards_studied: usize,
     duration_mins: u64,
+    theme: &'a Theme,
 }
 
-impl CompletionScreen {
-    pub fn new(cards_studied: usize, duration_mins: u64) -> Self {
+impl<'a> CompletionScreen<'a> {
+    pub fn new(cards_studied: usize, duration_mins: u64, theme: &'a Theme) -> Self {
         Self {
             cards_studied,
             duration_mins,
+            theme,
         }
     }
 }
 
-impl Widget for CompletionScreen {
+impl Widget for CompletionScreen<'_> {
     fn render(self, area: Rect, buf: &mut Buffer) {
         let block = Block::default()
             .borders(Borders::ALL)
             .border_type(BorderType::Rounded)
-            .border_style(Style::default().fg(Theme::SUCCESS))
+            .border_style(Style::default().fg(self.theme.colors.success))
             .title(Line::from(vec![
                 Span::raw(" "),
-                Span::styled("✨ SESSION COMPLETE ✨", Theme::card_back()),
+                Span::styled("SESSION COMPLETE", self.theme.card_back()),
                 Span::raw(" "),
             ]))
             .title_alignment(Alignment::Center);
@@ -348,30 +366,28 @@ impl Widget for CompletionScreen {
         let text = vec![
             Line::from(""),
             Line::from(vec![
-                Span::styled("🎉 ", Style::default()),
-                Span::styled("Great job!", Style::default().fg(Theme::SUCCESS).add_modifier(Modifier::BOLD)),
-                Span::styled(" 🎉", Style::default()),
+                Span::styled("Great job!", Style::default().fg(self.theme.colors.success).add_modifier(Modifier::BOLD)),
             ]),
             Line::from(""),
             Line::from(vec![
-                Span::styled("Cards studied: ", Style::default().fg(Theme::TEXT_MUTED)),
+                Span::styled("Cards studied: ", Style::default().fg(self.theme.colors.text_muted)),
                 Span::styled(
                     self.cards_studied.to_string(),
-                    Style::default().fg(Theme::PRIMARY).add_modifier(Modifier::BOLD),
+                    Style::default().fg(self.theme.colors.primary).add_modifier(Modifier::BOLD),
                 ),
             ]),
             Line::from(vec![
-                Span::styled("Time: ", Style::default().fg(Theme::TEXT_MUTED)),
+                Span::styled("Time: ", Style::default().fg(self.theme.colors.text_muted)),
                 Span::styled(
                     format!("{} minutes", self.duration_mins),
-                    Style::default().fg(Theme::PRIMARY).add_modifier(Modifier::BOLD),
+                    Style::default().fg(self.theme.colors.primary).add_modifier(Modifier::BOLD),
                 ),
             ]),
             Line::from(""),
             Line::from(vec![
-                Span::styled("Press ", Style::default().fg(Theme::TEXT_DIM)),
-                Span::styled("ESC", Theme::key_highlight()),
-                Span::styled(" to return", Style::default().fg(Theme::TEXT_DIM)),
+                Span::styled("Press ", Style::default().fg(self.theme.colors.text_dim)),
+                Span::styled("ESC", self.theme.key_highlight()),
+                Span::styled(" to return", Style::default().fg(self.theme.colors.text_dim)),
             ]),
         ];
 

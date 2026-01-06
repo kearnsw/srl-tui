@@ -2,6 +2,7 @@
 //!
 //! A beautiful terminal-based flashcard application with SM-2 spaced repetition.
 
+mod config;
 mod models;
 mod sm2;
 mod storage;
@@ -80,8 +81,11 @@ fn run_tui(storage: DeckStorage) -> Result<()> {
     let backend = CrosstermBackend::new(stdout);
     let mut terminal = Terminal::new(backend)?;
 
+    // Load config
+    let config = config::Config::load().unwrap_or_default();
+
     // Create app
-    let mut app = App::new(storage);
+    let mut app = App::new(storage, config);
 
     // Run main loop
     let result = run_app(&mut terminal, &mut app);

@@ -42,6 +42,15 @@ impl ReviewRating {
             Self::Easy => Color::Green,
         }
     }
+
+    pub fn color_for_theme(&self, theme: &crate::ui::theme::Theme) -> ratatui::style::Color {
+        match self {
+            Self::Again => theme.colors.rating_again,
+            Self::Hard => theme.colors.rating_hard,
+            Self::Good => theme.colors.rating_good,
+            Self::Easy => theme.colors.rating_easy,
+        }
+    }
 }
 
 /// A single flashcard.

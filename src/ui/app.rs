@@ -13,6 +13,7 @@ use ratatui::{
 
 use super::theme::Theme;
 use super::widgets::{CompletionScreen, FlashcardWidget, KeyHints, Logo, RatingButtons, StatsBar};
+use crate::config::Config;
 use crate::models::{Deck, ReviewRating};
 use crate::sm2::Scheduler;
 use crate::storage::{DeckInfo, DeckStorage};
@@ -32,6 +33,10 @@ pub enum Screen {
 pub struct App {
     pub screen: Screen,
     pub running: bool,
+
+    // Config and theme
+    pub config: Config,
+    pub theme: Theme,
 
     // Storage
     pub storage: DeckStorage,
@@ -59,12 +64,15 @@ pub struct App {
 }
 
 impl App {
-    pub fn new(storage: DeckStorage) -> Self {
+    pub fn new(storage: DeckStorage, config: Config) -> Self {
         let deck_list = storage.list_decks().unwrap_or_default();
+        let theme = Theme::from_name(&config.theme);
 
         Self {
             screen: Screen::DeckSelect,
             running: true,
+            config,
+            theme,
             storage,
             scheduler: Scheduler::new(),
             deck_list,
@@ -85,6 +93,13 @@ impl App {
             add_card_back: String::new(),
             add_card_focus: 0,
         }
+    }
+
+    pub fn cycle_theme(&mut self) {
+        let new_theme_name = self.theme.name.next();
+        self.theme = Theme::new(new_theme_name);
+        self.config.theme = new_theme_name.as_str().to_string();
+        let _ = self.config.save();
     }
 
     pub fn refresh_deck_list(&mut self) {
@@ -219,6 +234,7 @@ impl App {
     fn handle_deck_select_keys(&mut self, key: KeyCode) {
         match key {
             KeyCode::Char('q') | KeyCode::Esc => self.running = false,
+            KeyCode::Char('t') => self.cycle_theme(),
             KeyCode::Up | KeyCode::Char('k') => {
                 let i = self.deck_list_state.selected().unwrap_or(0);
                 let new_i = if i == 0 {
@@ -259,6 +275,7 @@ impl App {
                 self.screen = Screen::DeckSelect;
                 self.current_deck = None;
             }
+            KeyCode::Char('t') => self.cycle_theme(),
             KeyCode::Char(' ') => {
                 if !self.showing_answer {
                     self.show_answer();
@@ -338,7 +355,7 @@ impl App {
         // Clear with background
         frame.render_widget(Clear, area);
         frame.render_widget(
-            Block::default().style(Style::default().bg(Theme::BG_DARK)),
+            Block::default().style(Style::default().bg(self.theme.colors.bg_dark)),
             area,
         );
 
@@ -360,12 +377,17 @@ impl App {
         .split(area);
 
         // Logo
-        Logo::render(chunks[0], frame.buffer_mut());
+        Logo::render_to(&self.theme, chunks[0], frame.buffer_mut());
 
-        // Title
-        let title = Paragraph::new("Select a deck to study")
-            .alignment(Alignment::Center)
-            .style(Theme::subtitle());
+        // Title with theme indicator
+        let title = Paragraph::new(Line::from(vec![
+            Span::styled("Select a deck to study", self.theme.subtitle()),
+            Span::styled(
+                format!("  [{}]", self.theme.name.display_name()),
+                Style::default().fg(self.theme.colors.text_dim),
+            ),
+        ]))
+        .alignment(Alignment::Center);
         frame.render_widget(title, chunks[1]);
 
         // Deck list
@@ -379,7 +401,7 @@ impl App {
                     Span::styled(&deck.name, Style::default().add_modifier(Modifier::BOLD)),
                     Span::styled(
                         format!(" ({} cards)", deck.card_count),
-                        Style::default().fg(Theme::TEXT_MUTED),
+                        Style::default().fg(self.theme.colors.text_muted),
                     ),
                 ]);
                 ListItem::new(content)
@@ -391,22 +413,23 @@ impl App {
                 Block::default()
                     .borders(Borders::ALL)
                     .border_type(BorderType::Rounded)
-                    .border_style(Style::default().fg(Theme::PRIMARY))
-                    .title(" 📚 Decks ")
-                    .title_style(Theme::highlight()),
+                    .border_style(Style::default().fg(self.theme.colors.primary))
+                    .title(" Decks ")
+                    .title_style(self.theme.highlight()),
             )
-            .highlight_style(Theme::selected())
-            .highlight_symbol("▶ ");
+            .highlight_style(self.theme.selected())
+            .highlight_symbol("> ");
 
         frame.render_stateful_widget(list, list_area, &mut self.deck_list_state);
 
         // Key hints
         let hints = KeyHints::new(&[
-            ("↑↓", "navigate"),
+            ("j/k", "navigate"),
             ("Enter", "select"),
             ("n", "new deck"),
+            ("t", "theme"),
             ("q", "quit"),
-        ]);
+        ], &self.theme);
         frame.render_widget(hints, chunks[3]);
     }
 
@@ -425,15 +448,14 @@ impl App {
         // Header with deck name
         if let Some(ref deck) = self.current_deck {
             let header = Paragraph::new(Line::from(vec![
-                Span::styled("📖 ", Style::default()),
-                Span::styled(&deck.name, Theme::title()),
+                Span::styled(&deck.name, self.theme.title()),
             ]))
             .alignment(Alignment::Center);
             frame.render_widget(header, chunks[0]);
 
             // Stats bar
             let stats = deck.get_stats();
-            frame.render_widget(StatsBar::new(stats), chunks[1]);
+            frame.render_widget(StatsBar::new(stats, &self.theme), chunks[1]);
         }
 
         // Card display
@@ -448,7 +470,7 @@ impl App {
             };
 
             frame.render_widget(
-                FlashcardWidget::new(content, is_front),
+                FlashcardWidget::new(content, is_front, &self.theme),
                 card_area,
             );
         }
@@ -456,7 +478,7 @@ impl App {
         // Rating buttons
         let buttons_area = centered_rect(90, 100, chunks[5]);
         frame.render_widget(
-            RatingButtons::new(&self.interval_preview, self.showing_answer),
+            RatingButtons::new(&self.interval_preview, self.showing_answer, &self.theme),
             buttons_area,
         );
 
@@ -468,13 +490,14 @@ impl App {
                 ("3", "Good"),
                 ("4", "Easy"),
                 ("Esc", "quit"),
-            ])
+            ], &self.theme)
         } else {
             KeyHints::new(&[
                 ("Space", "show answer"),
                 ("a", "add card"),
+                ("t", "theme"),
                 ("Esc", "quit"),
-            ])
+            ], &self.theme)
         };
         frame.render_widget(hints, chunks[6]);
     }
@@ -499,16 +522,16 @@ impl App {
             .as_ref()
             .map(|d| d.name.as_str())
             .unwrap_or("Deck");
-        let title = Paragraph::new(format!("➕ Add Card to {}", deck_name))
+        let title = Paragraph::new(format!("Add Card to {}", deck_name))
             .alignment(Alignment::Center)
-            .style(Theme::title());
+            .style(self.theme.title());
         frame.render_widget(title, chunks[0]);
 
         // Front input
         let front_style = if self.add_card_focus == 0 {
-            Style::default().fg(Theme::ACCENT)
+            Style::default().fg(self.theme.colors.accent)
         } else {
-            Style::default().fg(Theme::TEXT_MUTED)
+            Style::default().fg(self.theme.colors.text_muted)
         };
         let front = Paragraph::new(self.add_card_front.as_str())
             .block(
@@ -523,9 +546,9 @@ impl App {
 
         // Back input
         let back_style = if self.add_card_focus == 1 {
-            Style::default().fg(Theme::ACCENT)
+            Style::default().fg(self.theme.colors.accent)
         } else {
-            Style::default().fg(Theme::TEXT_MUTED)
+            Style::default().fg(self.theme.colors.text_muted)
         };
         let back = Paragraph::new(self.add_card_back.as_str())
             .block(
@@ -546,7 +569,7 @@ impl App {
             .unwrap_or(0);
         let status = Paragraph::new(format!("Cards: {}", count))
             .alignment(Alignment::Center)
-            .style(Style::default().fg(Theme::TEXT_MUTED));
+            .style(Style::default().fg(self.theme.colors.text_muted));
         frame.render_widget(status, chunks[6]);
 
         // Hints
@@ -554,7 +577,7 @@ impl App {
             ("Tab", "switch field"),
             ("Enter", "add card"),
             ("Esc", "done"),
-        ]);
+        ], &self.theme);
         frame.render_widget(hints, chunks[8]);
     }
 
@@ -567,7 +590,7 @@ impl App {
             .unwrap_or(0);
 
         frame.render_widget(
-            CompletionScreen::new(self.cards_studied, duration_mins),
+            CompletionScreen::new(self.cards_studied, duration_mins, &self.theme),
             card_area,
         );
     }
