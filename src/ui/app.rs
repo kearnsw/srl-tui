@@ -386,8 +386,8 @@ impl App {
 
     fn render_deck_select(&mut self, frame: &mut Frame, area: Rect) {
         let chunks = Layout::vertical([
-            Constraint::Length(1),   // Top padding
-            Constraint::Length(9),   // Logo
+            Constraint::Length(2),   // Top padding
+            Constraint::Length(7),   // Logo
             Constraint::Length(2),   // Spacing
             Constraint::Min(5),      // Deck list
             Constraint::Length(3),   // Help

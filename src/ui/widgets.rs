@@ -21,12 +21,11 @@ pub struct Logo<'a> {
 
 impl<'a> Logo<'a> {
     const ART: &'static str = r#"
-  ███████╗██████╗ ██╗
-  ██╔════╝██╔══██╗██║
-  ███████╗██████╔╝██║
-  ╚════██║██╔══██╗██║
-  ███████║██║  ██║███████╗
-  ╚══════╝╚═╝  ╚═╝╚══════╝"#;
+ ____  ____  _
+/ ___||  _ \| |
+\___ \| |_) | |
+ ___) |  _ <| |___
+|____/|_| \_\_____|"#;
 
     const SUBTITLE: &'static str = "spaced  repetition  learning";
 
@@ -37,7 +36,7 @@ impl<'a> Logo<'a> {
     pub fn render_to(theme: &Theme, area: Rect, buf: &mut Buffer) {
         // Split area for logo and subtitle
         let chunks = Layout::vertical([
-            Constraint::Length(7), // ASCII art
+            Constraint::Length(5), // ASCII art
             Constraint::Length(1), // spacing
             Constraint::Length(1), // subtitle
         ])
