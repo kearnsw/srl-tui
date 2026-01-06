@@ -7,6 +7,7 @@ use ratatui::{
     text::{Line, Span},
     widgets::{block::BorderType, Block, Borders, Paragraph, Widget, Wrap},
 };
+use unicode_width::UnicodeWidthStr;
 
 use super::theme::Theme;
 use crate::models::DeckStats;
@@ -21,11 +22,12 @@ pub struct Logo<'a> {
 
 impl<'a> Logo<'a> {
     const ART: &'static str = r#"
- ____  ____  _
-/ ___||  _ \| |
-\___ \| |_) | |
- ___) |  _ <| |___
-|____/|_| \_\_____|"#;
+  ███████╗██████╗ ██╗
+  ██╔════╝██╔══██╗██║
+  ███████╗██████╔╝██║
+  ╚════██║██╔══██╗██║
+  ███████║██║  ██║███████╗
+  ╚══════╝╚═╝  ╚═╝╚══════╝"#;
 
     const SUBTITLE: &'static str = "spaced  repetition  learning";
 
@@ -36,19 +38,25 @@ impl<'a> Logo<'a> {
     pub fn render_to(theme: &Theme, area: Rect, buf: &mut Buffer) {
         // Split area for logo and subtitle
         let chunks = Layout::vertical([
-            Constraint::Length(5), // ASCII art
+            Constraint::Length(6), // ASCII art
             Constraint::Length(1), // spacing
             Constraint::Length(1), // subtitle
         ])
         .split(area);
 
-        // Render ASCII art
-        let lines: Vec<Line> = Self::ART
-            .lines()
-            .skip(1)
+        // Render ASCII art - pad all lines to same width so centering aligns them
+        let art_lines: Vec<&str> = Self::ART.lines().skip(1).collect();
+        let max_width = art_lines.iter().map(|l| l.width()).max().unwrap_or(0);
+
+        let lines: Vec<Line> = art_lines
+            .iter()
             .map(|line| {
+                // Pad line to max_width so all lines center to the same position
+                let line_width = line.width();
+                let padding = max_width.saturating_sub(line_width);
+                let padded = format!("{}{}", line, " ".repeat(padding));
                 Line::from(vec![
-                    Span::styled(line, Style::default().fg(theme.colors.primary))
+                    Span::styled(padded, Style::default().fg(theme.colors.primary))
                 ])
             })
             .collect();

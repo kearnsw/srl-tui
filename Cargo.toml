@@ -27,6 +27,9 @@ dirs = "5.0"
 # Error handling
 anyhow = "1.0"
 
+# Unicode display width
+unicode-width = "0.1"
+
 # CLI arguments
 clap = { version = "4.0", features = ["derive"] }
 
