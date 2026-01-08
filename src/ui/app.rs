@@ -55,6 +55,7 @@ pub struct App {
     pub study_queue: Vec<usize>,  // Indices into deck.cards
     pub current_card_idx: Option<usize>,
     pub showing_answer: bool,
+    pub answer_revealed: bool,  // True once answer has been shown at least once
     pub cards_studied: usize,
     pub session_start: Option<Instant>,
     pub interval_preview: [(ReviewRating, String); 4],
@@ -95,6 +96,7 @@ impl App {
             study_queue: Vec::new(),
             current_card_idx: None,
             showing_answer: false,
+            answer_revealed: false,
             cards_studied: 0,
             session_start: None,
             interval_preview: [
@@ -196,6 +198,7 @@ impl App {
 
         self.current_card_idx = Some(self.study_queue.remove(0));
         self.showing_answer = false;
+        self.answer_revealed = false;
 
         // Update interval preview
         if let (Some(deck), Some(idx)) = (&self.current_deck, self.current_card_idx) {
@@ -205,10 +208,11 @@ impl App {
 
     pub fn show_answer(&mut self) {
         self.showing_answer = true;
+        self.answer_revealed = true;
     }
 
     pub fn rate_card(&mut self, rating: ReviewRating) {
-        if !self.showing_answer {
+        if !self.answer_revealed {
             return;
         }
 
@@ -444,6 +448,9 @@ impl App {
             KeyCode::Char(' ') => {
                 if !self.showing_answer {
                     self.show_answer();
+                } else {
+                    // Toggle back to front (answer_revealed stays true)
+                    self.showing_answer = false;
                 }
             }
             KeyCode::Char('1') => self.rate_card(ReviewRating::Again),
@@ -815,13 +822,14 @@ impl App {
         // Rating buttons
         let buttons_area = centered_rect(90, 100, chunks[5]);
         frame.render_widget(
-            RatingButtons::new(&self.interval_preview, self.showing_answer, &self.theme),
+            RatingButtons::new(&self.interval_preview, self.answer_revealed, &self.theme),
             buttons_area,
         );
 
         // Key hints
-        let hints = if self.showing_answer {
+        let hints = if self.answer_revealed {
             KeyHints::new(&[
+                ("Space", "flip"),
                 ("1", "Again"),
                 ("2", "Hard"),
                 ("3", "Good"),

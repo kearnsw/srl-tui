@@ -1,6 +1,6 @@
 [package]
 name = "srl-tui"
-version = "0.8.6"
+version = "0.8.7"
 edition = "2021"
 description = "Spaced repetition flashcard TUI"
 license = "MIT"
